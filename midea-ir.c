@@ -55,7 +55,7 @@
  *      1101 - dehumidify
  */
 
-// #define DEBUG_PRINT
+//#define DEBUG_PRINT
 
 #define TEMP_LOW  17
 #define TEMP_HIGH 30
@@ -154,8 +154,11 @@ static inline void pack_data(MideaIR *ir, DataPacket *data)
     }
 }
 
-void midea_ir_init(MideaIR *ir)
+void midea_ir_init(MideaIR *ir, const uint8_t pin_number)
 {
+    ir_state.pin_number = pin_number;
+    ir_state.repeat_count = 0;   // indicates IDLE state
+
     ir->temperature = 24;
     ir->enabled = true;
     ir->mode = MODE_AUTO;
@@ -167,8 +170,6 @@ void midea_ir_init(MideaIR *ir)
     _xt_isr_attach(INUM_TIMER_FRC1, timer_interrupt_handler);
     timer_set_frequency(FRC1, 38000 * 2);   // two iterrupts per period
     timer_set_interrupts(FRC1, true);
-
-    ir_state.repeat_count = 0;   // indicates IDLE state
 }
 
 #ifdef DEBUG_PRINT

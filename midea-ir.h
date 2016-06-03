@@ -30,7 +30,7 @@ typedef struct {
 /**
  * Initialize Ir module and ir structure with default values
  */
-void midea_ir_init(MideaIR *ir);
+void midea_ir_init(MideaIR *ir, const uint8_t pin_number);
 
 /**
  * Send Ir signal to air conditioner
