@@ -90,6 +90,14 @@ const static uint8_t temperature_table[] = {
 //  0b1110    // off
 };
 
+// Table to convert fan level
+const static uint8_t fan_table[] = {
+    0b1011,   // 0
+    0b1001,   // 1
+    0b0101,   // 2
+    0b0011,   // 3
+};
+
 #define PULSES_CAPACITY         29    // 8T + 8T + (4T * 8 * 6) + 8T
 #define SUB_PULSES_PER_PULSE    42    // (high + low) * 21
 
@@ -137,14 +145,22 @@ static inline void pack_data(MideaIR *ir, DataPacket *data)
 {
     data->magic = 0xB2;
     if (ir->enabled) {
-        data->fan = ir->fan_level;
+        if (ir->mode == MODE_AUTO) {
+            data->fan = 0b0001;         // for auto mode fan must be 0b0001
+        } else {
+            data->fan = fan_table[ir->fan_level];
+        }
         data->state = 0b1111;  // on
         data->command = ir->mode;
 
-        if (ir->temperature >= TEMP_LOW && ir->temperature <= TEMP_HIGH) {
-            data->temp = temperature_table[ir->temperature - TEMP_LOW];
+        if (ir->mode == MODE_FAN) {
+            data->temp = 0b1110;
         } else {
-            data->temp = 0b0100;
+            if (ir->temperature >= TEMP_LOW && ir->temperature <= TEMP_HIGH) {
+                data->temp = temperature_table[ir->temperature - TEMP_LOW];
+            } else {
+                data->temp = 0b0100;
+            }
         }
     } else {
         data->fan = 0b0111;
@@ -160,9 +176,9 @@ void midea_ir_init(MideaIR *ir, const uint8_t pin_number)
     ir_state.repeat_count = 0;   // indicates IDLE state
 
     ir->temperature = 24;
-    ir->enabled = true;
+    ir->enabled = false;
     ir->mode = MODE_AUTO;
-    ir->fan_level = FAN_AUTO;
+    ir->fan_level = 0;
 
     gpio_enable(ir_state.pin_number, GPIO_OUTPUT);
     gpio_write(ir_state.pin_number, false);
@@ -283,12 +299,10 @@ void midea_ir_send(MideaIR *ir)
 
 void midea_ir_move_deflector(MideaIR *ir)
 {
-    uint8_t data[RAW_DATA_PACKET_SIZE/2];
+    uint8_t data[RAW_DATA_PACKET_SIZE/2] = {0xB2, 0x0F, 0xE0};
     uint8_t raw_data[RAW_DATA_PACKET_SIZE];
-
-    // TODO: fill data to move deflector
 
     add_complementary_bytes(data, raw_data);
     
-    send_ir_data(data, 1);
+    send_ir_data(raw_data, 1);
 }

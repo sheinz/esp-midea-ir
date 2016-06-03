@@ -6,23 +6,16 @@
 
 
 typedef enum {
-    MODE_COOL       = 0b0000,  // confirmed
+    MODE_COOL       = 0b0000,
     MODE_HEAT       = 0b1100,
-    MODE_AUTO       = 0b1000,  // confirmed
+    MODE_AUTO       = 0b1000,
+    MODE_FAN        = 0b0100,
     MODE_DEHUMIDIFY = 0b1000,
 } MideaMode;
 
-typedef enum {
-    FAN_OFF     = 0b0111,   // confirmed
-    FAN_LOW     = 0b1001,
-    FAN_MEDIUM  = 0b0101,
-    FAN_HIGH    = 0b0011,
-    FAN_AUTO    = 0b0001,   // confirmed
-} MideaFanLevel;
-
 typedef struct {
     uint8_t temperature; // in Celsius
-    MideaFanLevel fan_level;
+    uint8_t fan_level;   // 0..3
     MideaMode mode;
     bool enabled;        // on/off air conditioner
 } MideaIR;
