@@ -11,18 +11,19 @@
  * provides errors checking on the receiver side.
  *
  * Each 6 total bytes follows with additional repeat of the same 6 bytes to
- * provide even more errors checking.
+ * provide even more errors checking. (except move deflector command)
  */
 
 /**
  * Bits encoding.
  *
+ * T is 21 38000kHz pulses.
+ *
  * Bit 0 is encoded as 1T of high level and 1T of low level.
  * Bit 1 is encoded as 1T of high level and 3T of low level.
  *
  * Start condition: 8T of hight level and 8T of low level.
- * Middle condition (beetween two 6 bytes): 
- * TODO: describe
+ * Stop bit: 6 bytes follow with one "0" stop bit.
  */
 
 /**
@@ -32,17 +33,17 @@
  * 1010 0010 - (0xB2) is a constant
  *
  * ffff - Fan control
+ *      1011 - automatic or 0
  *      1001 - low speed
  *      0101 - medium speed
  *      0011 - high speed
- *      1011 - automatic
- *      0111 - off
+ *      0001 - off (or when fan speed is irrelevant)
  *
- * ssss - State control (unconfirmed!)
+ * ssss - State control
  *      1111 - on
  *      1011 - off
  *
- * tttt - Temperature control (unconfirmed!)
+ * tttt - Temperature control (see table below)
  *      0000 - 17 Celsius
  *      ...
  *      1011 - 30 Celsius
@@ -52,7 +53,7 @@
  *      0000 - cool
  *      1100 - heat
  *      1000 - automatic
- *      1101 - dehumidify
+ *      0100 - fan
  */
 
 //#define DEBUG_PRINT
@@ -71,7 +72,7 @@ typedef struct
     uint8_t temp : 4;
 } DataPacket;
 
-// Table to convert temperature in Celcius to a strange Midea AirCon values
+// Table to convert temperature in Celsius to a strange Midea AirCon values
 const static uint8_t temperature_table[] = {
     0b0000,   // 17 C
     0b0001,   // 18 C
@@ -98,6 +99,25 @@ const static uint8_t fan_table[] = {
     0b0011,   // 3
 };
 
+/**
+ * Implementation of pulses processing.
+ *
+ * In order to generate carrier frequency and data pulses single hardware timer
+ * is used. It ticks with frequency double the carrier frequency in order to
+ * generate rising and falling edge of carrier wave.
+ *
+ * The minimum data pulses is T which is 21 pulses of carrier frequency.
+ * To minimize code in the interrupt handler the stream of data pulses is 
+ * prepared. When interrupt handlers sees pulse value "1" it needs to generate
+ * 21 pulses of 38kHz. When interrupt handler sees pulse value "0" it is being
+ * silent for time of 21 periods of 38kHz.
+ *
+ *              ________          _     _   _ 
+ * signal:    _|        |________| |___| |_| | ...  (without carrier)
+ * meaning:    "start condition"   "1"  "0"
+ * pulses:      11111111 00000000 1 000 1 0 1
+ */
+
 #define PULSES_CAPACITY         29    // 8T + 8T + (4T * 8 * 6) + 8T
 #define SUB_PULSES_PER_PULSE    42    // (high + low) * 21
 
@@ -106,7 +126,7 @@ typedef struct
     uint8_t pin_number;
     uint8_t pulses[PULSES_CAPACITY];  // pulses to spit out
     uint8_t pulses_size;
-    uint8_t repeat_count;            // how many times to repeat
+    uint8_t repeat_count;             // how many times to repeat
     uint8_t current_pulse;            // current processing pulse
     uint8_t current_sub_pulse;        // 38000 kHz pulse
 } IrState;
@@ -115,7 +135,7 @@ static volatile IrState ir_state;
 
 static void timer_interrupt_handler(void)
 {
-    // get bit number 'current_pulse'
+    // get current pulse value
     bool pulse_val = ir_state.pulses[ir_state.current_pulse/8] 
         & (1<<(ir_state.current_pulse%8));
 
